@@ -16,7 +16,7 @@ from model import Extractor, Classifier, Discriminator
 from model import get_cls_loss, get_dis_loss, get_confusion_loss
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--data_root", default="/home/xuruijia/ZJY/ADW/Office-31/")
+parser.add_argument("--data_root", default="/data1/wyc/dataset/office/")
 parser.add_argument("-s1", default="amazon")
 parser.add_argument("-s2", default="webcam")
 parser.add_argument("-t", default="dslr")
@@ -24,7 +24,7 @@ parser.add_argument("--batch_size", default=32)
 parser.add_argument("--shuffle", default=True)
 parser.add_argument("--num_workers", default=8)
 parser.add_argument("--steps", default=8)
-parser.add_argument("--snapshot", default="/home/xuruijia/ZJY/ADW/bvlc_A_W_2_D/snapshot/")
+parser.add_argument("--snapshot", default="/data1/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/snapshot/")
 parser.add_argument("--s1_weight", default=0.5)
 parser.add_argument("--s2_weight", default=0.5)
 parser.add_argument("--lr", default=0.00001)

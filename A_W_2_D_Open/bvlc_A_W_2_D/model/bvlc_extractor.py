@@ -6,7 +6,7 @@ class LRN(nn.Module):
         super(LRN, self).__init__()
         self.ACROSS_CHANNELS = ACROSS_CHANNELS
         if ACROSS_CHANNELS:
-            self.average=nn.AvgPool3d(kernel_size=(local_size, 1, 1),
+            self.average=nn.functional.avg_pool3d(kernel_size=(local_size, 1, 1),
                     stride=1,
                     padding=(int((local_size-1.0)/2), 0, 0))
         else:
