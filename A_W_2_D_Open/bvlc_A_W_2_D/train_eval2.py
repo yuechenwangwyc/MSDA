@@ -81,11 +81,11 @@ t_loader_test = torch.utils.data.DataLoader(t_set_test, batch_size=batch_size,
 
 
 extractor = Extractor().cuda(gpu_id)
-extractor.load_state_dict(torch.load("/data1/wyc/DA/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_extractor.pth"))
+#extractor.load_state_dict(torch.load("/home/xuruijia/ZJY/ADW/bvlc_A_W_2_D/pretrain/bvlc_extractor.pth"))
 s1_classifier = Classifier(num_classes=num_classes).cuda(gpu_id)
 s2_classifier = Classifier(num_classes=num_classes).cuda(gpu_id)
-s1_classifier.load_state_dict(torch.load("/data1/wyc/DA/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s1_cls.pth"))
-s2_classifier.load_state_dict(torch.load("/data1/wyc/DA/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s2_cls.pth"))
+#s1_classifier.load_state_dict(torch.load("/home/xuruijia/ZJY/ADW/bvlc_A_W_2_D/pretrain/bvlc_s1_cls.pth"))
+#s2_classifier.load_state_dict(torch.load("/home/xuruijia/ZJY/ADW/bvlc_A_W_2_D/pretrain/bvlc_s2_cls.pth"))
 s1_t_discriminator = Discriminator().cuda(gpu_id)
 s2_t_discriminator = Discriminator().cuda(gpu_id)
 
@@ -118,6 +118,7 @@ for step in range(steps):
     s2_classifier.eval()
     
     fin = open(t_label)
+
     fout = open(os.path.join(data_root, args.t, "pseudo/pse_label_" + str(step) + ".txt"), "w")
     if step > 0:
         s1_weight = s1_weight_loss / (s1_weight_loss + s2_weight_loss)
@@ -136,7 +137,6 @@ for step in range(steps):
         s2_cls = s2_cls.data.cpu().numpy()
         
         t_pred = s1_cls * s1_weight + s2_cls * s2_weight
-
         ids = t_pred.argmax(axis=1)
         for j in range(ids.shape[0]):
             line = fin.next()
@@ -236,6 +236,7 @@ for step in range(steps):
             torch.save(extractor.state_dict(), os.path.join(snapshot, "p2_extractor_" + str(step) + "_" + str(cls_epoch) + ".pth"))
             torch.save(s1_classifier.state_dict(), os.path.join(snapshot, "p2_s1_cls_" + str(step) + "_" + str(cls_epoch) + ".pth"))
             torch.save(s2_classifier.state_dict(), os.path.join(snapshot, "p2_s2_cls_" + str(step) + "_" + str(cls_epoch) + ".pth"))
+        break
             
          
     # Part 3: train discriminator and generate mix feature
@@ -252,6 +253,7 @@ for step in range(steps):
     for gan_epoch in range(gan_epoches):
         s1_loader, s2_loader, t_loader = iter(s1_loader_raw), iter(s2_loader_raw), iter(t_loader_raw)
         for i, (t_imgs, t_labels) in tqdm.tqdm(enumerate(t_loader)):
+            print i
             s1_imgs, s1_labels = s1_loader.next()
             s2_imgs, s2_labels = s2_loader.next()
             s1_imgs, s1_labels = Variable(s1_imgs.cuda(gpu_id)), Variable(s1_labels.cuda(gpu_id))
