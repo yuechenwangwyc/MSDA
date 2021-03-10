@@ -10,6 +10,6 @@ def get_confusion_loss(dis_common):
     return confusion_loss
 
 def get_cls_loss(pred, gt):
-    cls_loss = F.nll_loss(F.log_softmax(pred), gt)
+    cls_loss = F.nll_loss(F.log_softmax(pred,dim=1), gt)
     return cls_loss
 
