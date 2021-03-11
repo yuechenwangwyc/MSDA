@@ -14,6 +14,8 @@ from torch.autograd import Variable
 from utils import OfficeImage, LinePlotter
 from model import Extractor, Classifier, Discriminator
 from model import get_cls_loss, get_dis_loss, get_confusion_loss
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_root", default="/data1/wyc/dataset/office/")
@@ -80,14 +82,28 @@ t_loader_test = torch.utils.data.DataLoader(t_set_test, batch_size=batch_size,
     shuffle=False, num_workers=num_workers)
 
 
-extractor = Extractor().cuda(gpu_id)
-extractor.load_state_dict(torch.load("/home/xuruijia/ZJY/ADW/bvlc_A_W_2_D/pretrain/bvlc_extractor.pth"))
-s1_classifier = Classifier(num_classes=num_classes).cuda(gpu_id)
-s2_classifier = Classifier(num_classes=num_classes).cuda(gpu_id)
-s1_classifier.load_state_dict(torch.load("/home/xuruijia/ZJY/ADW/bvlc_A_W_2_D/pretrain/bvlc_s1_cls.pth"))
-s2_classifier.load_state_dict(torch.load("/home/xuruijia/ZJY/ADW/bvlc_A_W_2_D/pretrain/bvlc_s2_cls.pth"))
-s1_t_discriminator = Discriminator().cuda(gpu_id)
-s2_t_discriminator = Discriminator().cuda(gpu_id)
+extractor = Extractor()
+extractor.load_state_dict(torch.load("/data1/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_extractor.pth"))
+extractor = nn.DataParallel(extractor)
+extractor=extractor.cuda()
+
+s1_classifier = Classifier(num_classes=num_classes)
+s2_classifier = Classifier(num_classes=num_classes)
+
+s1_classifier.load_state_dict(torch.load("/data1/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s1_cls.pth"))
+s2_classifier.load_state_dict(torch.load("/data1/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s2_cls.pth"))
+s1_classifier = nn.DataParallel(s1_classifier)
+s2_classifier = nn.DataParallel(s2_classifier)
+s1_classifier=s1_classifier.cuda()
+s2_classifier=s2_classifier.cuda()
+
+
+s1_t_discriminator = Discriminator()
+s1_t_discriminator = nn.DataParallel(s1_t_discriminator)
+s1_t_discriminator=s1_t_discriminator.cuda()
+s2_t_discriminator = Discriminator()
+s2_t_discriminator = nn.DataParallel(s2_t_discriminator)
+s2_t_discriminator=s2_t_discriminator.cuda()
 
 
 def print_log(step, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag, ploter, count):
@@ -95,14 +111,6 @@ def print_log(step, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag, pl
           "s2_t_dis_loss: %.4f, s1_t_confusion_loss_s1: %.4f, s1_t_confusion_loss_t: %.4f, " \
           "s2_t_confusion_loss_s2: %.4f, s2_t_confusion_loss_t: %.4f, selected_source: %s" \
           % (step, steps, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag)
-    '''ploter.plot("s1_cls_loss", "train", count, l1)
-    ploter.plot("s2_cls_loss", "train", count, l2)
-    ploter.plot("s1_t_dis_loss", "train", count, l3)
-    ploter.plot("s2_t_dis_loss", "train", count, l4)
-    ploter.plot("s1_t_confusion_loss_s1", "train", count, l5)
-    ploter.plot("s1_t_confusion_loss_t", "train", count, l6)
-    ploter.plot("s2_t_confusion_loss_s2", "train", count, l7)
-    ploter.plot("s2_t_confusion_loss_t", "train", count, l8)'''
 
 
 count = 0
@@ -125,23 +133,28 @@ for step in range(steps):
     print "s1_weight is: ", s1_weight
     print "s2_weight is: ", s2_weight
 
-    for i, (t_imgs, t_labels) in tqdm.tqdm(enumerate(t_loader_test)):
-        t_imgs = Variable(t_imgs.cuda(gpu_id))
+
+
+    for i, (t_imgs, t_labels) in enumerate(t_loader_test):
+        t_imgs = Variable(t_imgs.cuda())
         t_feature = extractor(t_imgs)
         s1_cls = s1_classifier(t_feature)
         s2_cls = s2_classifier(t_feature)
-        s1_cls = F.softmax(s1_cls)
-        s2_cls = F.softmax(s2_cls)
+        s1_cls = F.softmax(s1_cls,dim=1)
+        s2_cls = F.softmax(s2_cls,dim=1)
         s1_cls = s1_cls.data.cpu().numpy()
         s2_cls = s2_cls.data.cpu().numpy()
         
         t_pred = s1_cls * s1_weight + s2_cls * s2_weight
-        ids = t_pred.argmax(axis=1)
+        #ids = t_pred.argmax(axis=1)
+        ids=np.argmax(t_pred,axis=1)
         for j in range(ids.shape[0]):
             line = fin.next()
             data = line.strip().split(" ")
             if t_pred[j, ids[j]] >= threshold:
                 fout.write(data[0] + " " + str(ids[j]) + "\n")
+
+
     fin.close()
     fout.close()     
 
@@ -161,9 +174,9 @@ for step in range(steps):
     optim_s1_cls = optim.Adam(s1_classifier.parameters(), lr=lr, betas=(beta1, beta2))
     optim_s2_cls = optim.Adam(s2_classifier.parameters(), lr=lr, betas=(beta1, beta2))
 
-    for cls_epoch in range(cls_epoches):
+    for cls_epoch in range(cls_epoches):#cls_epoches
         s1_loader, s2_loader, t_pse_loader = iter(s1_loader_raw), iter(s2_loader_raw), iter(t_pse_loader_raw)
-        for i, (t_pse_imgs, t_pse_labels) in tqdm.tqdm(enumerate(t_pse_loader)):
+        for i, (t_pse_imgs, t_pse_labels) in enumerate(t_pse_loader):
             try:
                 s1_imgs, s1_labels = s1_loader.next()
             except StopIteration:
@@ -174,9 +187,9 @@ for step in range(steps):
             except StopIteration:
                 s2_loader = iter(s2_loader_raw)
                 s2_imgs, s2_labels = s2_loader.next()
-            s1_imgs, s1_labels = Variable(s1_imgs.cuda(gpu_id)), Variable(s1_labels.cuda(gpu_id))
-            s2_imgs, s2_labels = Variable(s2_imgs.cuda(gpu_id)), Variable(s2_labels.cuda(gpu_id))
-            t_pse_imgs, t_pse_labels = Variable(t_pse_imgs.cuda(gpu_id)), Variable(t_pse_labels.cuda(gpu_id))
+            s1_imgs, s1_labels = Variable(s1_imgs.cuda()), Variable(s1_labels.cuda())
+            s2_imgs, s2_labels = Variable(s2_imgs.cuda()), Variable(s2_labels.cuda())
+            t_pse_imgs, t_pse_labels = Variable(t_pse_imgs.cuda()), Variable(t_pse_labels.cuda())
             
             s1_t_imgs = torch.cat((s1_imgs, t_pse_imgs), 0)
             s1_t_labels = torch.cat((s1_labels, t_pse_labels), 0)
@@ -210,22 +223,21 @@ for step in range(steps):
         s2_classifier.eval()
         correct = 0
         for (imgs, labels) in t_loader_test:
-        	imgs = Variable(imgs.cuda(gpu_id))
-        	imgs_feature = extractor(imgs)
-        
-        	s1_cls = s1_classifier(imgs_feature)
-        	s2_cls = s2_classifier(imgs_feature)
-        	s1_cls = F.softmax(s1_cls)
-        	s2_cls = F.softmax(s2_cls)
-        	s1_cls = s1_cls.data.cpu().numpy()
-        	s2_cls = s2_cls.data.cpu().numpy()
-        	
-        	res = s1_cls * s1_weight + s2_cls * s2_weight
-        	
-        	pred = res.argmax(axis=1)
-        	labels = labels.numpy()
-        	correct += np.equal(labels, pred).sum()
+            imgs = Variable(imgs.cuda())
+            imgs_feature = extractor(imgs)
+            s1_cls = s1_classifier(imgs_feature)
+            s2_cls = s2_classifier(imgs_feature)
+            s1_cls = F.softmax(s1_cls,dim=1)
+            s2_cls = F.softmax(s2_cls,dim=1)
+            s1_cls = s1_cls.data.cpu().numpy()
+            s2_cls = s2_cls.data.cpu().numpy()
+            res = s1_cls * s1_weight + s2_cls * s2_weight
+            #pred = res.argmax(axis=1)
+            pred = np.argmax(res,axis=1)
+            labels = labels.numpy()
+            correct += np.equal(labels, pred).sum()
         current_accuracy = correct * 1.0 / len(t_set_test)
+        current_accuracy=current_accuracy.item()
         print "Current accuracy is: ", current_accuracy
 
         if current_accuracy >= max_correct:
@@ -248,14 +260,14 @@ for step in range(steps):
 
     s1_weight_loss = 0
     s2_weight_loss = 0
-    for gan_epoch in range(gan_epoches):
+    for gan_epoch in range(gan_epoches):#gan_epoches
         s1_loader, s2_loader, t_loader = iter(s1_loader_raw), iter(s2_loader_raw), iter(t_loader_raw)
-        for i, (t_imgs, t_labels) in tqdm.tqdm(enumerate(t_loader)):
+        for i, (t_imgs, t_labels) in enumerate(t_loader):
             s1_imgs, s1_labels = s1_loader.next()
             s2_imgs, s2_labels = s2_loader.next()
-            s1_imgs, s1_labels = Variable(s1_imgs.cuda(gpu_id)), Variable(s1_labels.cuda(gpu_id))
-            s2_imgs, s2_labels = Variable(s2_imgs.cuda(gpu_id)), Variable(s2_labels.cuda(gpu_id))
-            t_imgs = Variable(t_imgs.cuda(gpu_id))
+            s1_imgs, s1_labels = Variable(s1_imgs.cuda()), Variable(s1_labels.cuda())
+            s2_imgs, s2_labels = Variable(s2_imgs.cuda()), Variable(s2_labels.cuda())
+            t_imgs = Variable(t_imgs.cuda())
   
             extractor.zero_grad()
             s1_feature = extractor(s1_imgs)
@@ -288,6 +300,7 @@ for step in range(steps):
             else:
                 SELECTIVE_SOURCE = "S2"
                 torch.autograd.backward([s1_cls_loss, s2_cls_loss, s2_t_confusion_loss])
+
             optim_extract.step()
 
             s1_t_discriminator.zero_grad()
