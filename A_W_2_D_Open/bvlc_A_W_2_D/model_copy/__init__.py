@@ -1,7 +1,6 @@
 from .bvlc_extractor import Extractor
 from .bvlc_classifier import Classifier
 from .discriminator import Discriminator
-from .bvlc_extractor import ResNetFc
 
 from .loss import get_dis_loss
 from .loss import get_cls_loss

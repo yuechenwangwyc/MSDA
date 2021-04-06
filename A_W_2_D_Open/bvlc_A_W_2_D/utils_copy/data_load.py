@@ -72,7 +72,7 @@ def transform_train(resize_size=256, crop_size=224, alexnet=False):
                                      std=[0.229, 0.224, 0.225])
     return transforms.Compose([
         transforms.Resize((resize_size, resize_size)),
-        transforms.RandomCrop(224),
+        transforms.RandomCrop(227),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
@@ -84,7 +84,7 @@ def transform_test(resize_size=256, crop_size=224, alexnet=False):
 
     return transforms.Compose([
         transforms.Resize((resize_size, resize_size)),
-        transforms.CenterCrop(224),
+        transforms.CenterCrop(227),
         transforms.ToTensor(),
         normalize,
     ])

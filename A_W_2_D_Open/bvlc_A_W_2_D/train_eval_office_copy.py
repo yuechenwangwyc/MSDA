@@ -9,9 +9,9 @@ from torch.autograd import Variable
 import os.path as osp
 import logging
 import sys
-from utils import OfficeImage, LinePlotter
-from model import Extractor, Classifier, Discriminator
-from model import get_cls_loss, get_dis_loss, get_confusion_loss
+from utils_copy import OfficeImage, LinePlotter
+from model_copy import Extractor, Classifier, Discriminator
+from model_copy import get_cls_loss, get_dis_loss, get_confusion_loss
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
@@ -26,7 +26,7 @@ parser.add_argument("--batch_size", default=32)
 parser.add_argument("--shuffle", default=True)
 parser.add_argument("--num_workers", default=8)
 parser.add_argument("--steps", default=8)
-parser.add_argument("--snapshot", default=osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/snapshot","office"))
+parser.add_argument("--snapshot", default=osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/snapshot/"))
 parser.add_argument("--s1_weight", default=0.5)
 parser.add_argument("--s2_weight", default=0.5)
 parser.add_argument("--lr", default=0.00001)
@@ -110,12 +110,12 @@ s2_classifier = Classifier(num_classes=num_classes)
 s1_t_discriminator = Discriminator()
 s2_t_discriminator = Discriminator()
 
-extractor.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/office/bvlc_extractor.pth")))
+extractor.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_extractor.pth")))
 extractor = nn.DataParallel(extractor)
 extractor=extractor.cuda()
 
-s1_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/office/bvlc_s1_cls.pth")))
-s2_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/office/bvlc_s2_cls.pth")))
+s1_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s1_cls.pth")))
+s2_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s2_cls.pth")))
 s1_classifier = nn.DataParallel(s1_classifier)
 s2_classifier = nn.DataParallel(s2_classifier)
 s1_classifier=s1_classifier.cuda()
