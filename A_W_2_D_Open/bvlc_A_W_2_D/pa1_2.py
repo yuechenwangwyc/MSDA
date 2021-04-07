@@ -10,8 +10,8 @@ import os.path as osp
 import logging
 import sys
 from utils import OfficeHomeImage
-from model import Extractor, Classifier, Discriminator,ResNetFc
-from model import get_cls_loss, get_dis_loss, get_confusion_loss
+from model import ResNetFc
+from model import get_cls_loss
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 
@@ -77,26 +77,18 @@ if os.path.isfile(log_file):
 logger = get_log(log_file)
 
 
-# s1_root = os.path.join(data_root, args.s1)
-# s1_label = os.path.join(data_root, "train_test",args.s1+"_train.txt")
-# t_root = os.path.join(data_root, args.t)
-# t_label = os.path.join(data_root,"train_test", args.t+"_test.txt")
-# s1_set = OfficeImage(s1_root, s1_label, split="train")
-# t_set_test = OfficeImage(t_root, t_label, split="test")
 
 s1_root = os.path.join(data_root, args.s1, "images")
 s1_label = os.path.join(data_root, args.s1, "label.txt")
-
 t_root = os.path.join(data_root, args.t, "images")
 t_label = os.path.join(data_root, args.t, "label.txt")
-s1_set = OfficeHomeImage(s1_root, s1_label, split="train")
-t_set = OfficeHomeImage(t_root, t_label, split="train")
-t_set_test = OfficeHomeImage(t_root, t_label, split="test")
+
+
 t_set_test = OfficeHomeImage(t_root, t_label, split="test")
 t_set_test2 = OfficeHomeImage(s1_root, s1_label, split="test")
 
-# assert len(s1_set) == 2000
-# assert len(t_set_test) == 2000
+
+
 s1_loader_raw = torch.utils.data.DataLoader(s1_set, batch_size=batch_size,
     shuffle=shuffle, num_workers=num_workers, drop_last=True)
 t_loader_test = torch.utils.data.DataLoader(t_set_test, batch_size=batch_size,
