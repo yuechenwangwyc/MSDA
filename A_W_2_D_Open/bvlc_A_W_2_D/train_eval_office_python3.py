@@ -1,6 +1,5 @@
 import os
 import argparse
-import tqdm
 import numpy as np
 from itertools import chain
 from collections import OrderedDict
@@ -11,10 +10,10 @@ import torch.optim as optim
 from torchvision import transforms
 from torch.autograd import Variable
 
-from utils import OfficeImage, LinePlotter
+from utils import OfficeImage
 from model import Extractor, Classifier, Discriminator
 from model import get_cls_loss, get_dis_loss, get_confusion_loss
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,5'#####
+os.environ["CUDA_VISIBLE_DEVICES"] = '5,7'
 
 
 parser = argparse.ArgumentParser()
@@ -107,20 +106,20 @@ s2_t_discriminator=s2_t_discriminator.cuda()
 
 
 def print_log(step, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag, ploter, count):
-    print "Step [%d/%d] Epoch [%d/%d] lr: %f, s1_cls_loss: %.4f, s2_cls_loss: %.4f, s1_t_dis_loss: %.4f, " \
+    print ("Step [%d/%d] Epoch [%d/%d] lr: %f, s1_cls_loss: %.4f, s2_cls_loss: %.4f, s1_t_dis_loss: %.4f, " \
           "s2_t_dis_loss: %.4f, s1_t_confusion_loss_s1: %.4f, s1_t_confusion_loss_t: %.4f, " \
           "s2_t_confusion_loss_s2: %.4f, s2_t_confusion_loss_t: %.4f, selected_source: %s" \
-          % (step, steps, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag)
+          % (step, steps, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag))
 
 
 count = 0
 max_correct = 0
 max_step = 0
 max_epoch = 0
-ploter = LinePlotter(env_name="bvlc_A_W_2_D")
+#ploter = LinePlotter(env_name="bvlc_A_W_2_D")
 for step in range(steps):
     # Part 1: assign psudo-labels to t-domain and update the label-dataset
-    print "#################### Part1 ####################"
+    print ("#################### Part1 ####################")
     extractor.eval()
     s1_classifier.eval()
     s2_classifier.eval()
@@ -130,8 +129,8 @@ for step in range(steps):
     if step > 0:
         s1_weight = s1_weight_loss / (s1_weight_loss + s2_weight_loss)
         s2_weight = s2_weight_loss / (s1_weight_loss + s2_weight_loss)
-    print "s1_weight is: ", s1_weight
-    print "s2_weight is: ", s2_weight
+    print ("s1_weight is: ", s1_weight)
+    print ("s2_weight is: ", s2_weight)
 
 
 
@@ -160,7 +159,7 @@ for step in range(steps):
 
   
     # Part 2: train F1t, F2t with pseudo labels
-    print "#################### Part2 ####################"
+    print ("#################### Part2 ####################")
     extractor.train()
     s1_classifier.train()
     s2_classifier.train()
@@ -168,7 +167,7 @@ for step in range(steps):
     t_pse_set = OfficeImage(t_root, t_pse_label, split="train")
     t_pse_loader_raw = torch.utils.data.DataLoader(t_pse_set, batch_size=batch_size,
                            shuffle=shuffle, num_workers=num_workers)
-    print "Length of pseudo-label dataset: ", len(t_pse_set)
+    print ("Length of pseudo-label dataset: ", len(t_pse_set))
 
     optim_extract = optim.Adam(extractor.parameters(), lr=lr, betas=(beta1, beta2))
     optim_s1_cls = optim.Adam(s1_classifier.parameters(), lr=lr, betas=(beta1, beta2))
@@ -215,7 +214,7 @@ for step in range(steps):
 
             if (i+1) % log_interval == 0:
                 print_log(step+1, cls_epoch+1, cls_epoches, lr, s1_t_cls_loss.data[0], \
-                           s2_t_cls_loss.data[0], 0, 0, 0, 0, 0, 0, "...", ploter, count)
+                           s2_t_cls_loss.data[0], 0, 0, 0, 0, 0, 0, "...", 0, count)
                 count += 1
     
         extractor.eval()
@@ -238,7 +237,7 @@ for step in range(steps):
             correct += np.equal(labels, pred).sum()
         current_accuracy = correct * 1.0 / len(t_set_test)
         current_accuracy=current_accuracy.item()
-        print "Current accuracy is: ", current_accuracy
+        print ("Current accuracy is: ", current_accuracy)
 
         if current_accuracy >= max_correct:
             max_correct = current_accuracy
@@ -250,7 +249,7 @@ for step in range(steps):
             
          
     # Part 3: train discriminator and generate mix feature
-    print "#################### Part3 ####################"
+    print ("#################### Part3 ####################")
     extractor.train()
     s1_classifier.train()
     s2_classifier.train()
@@ -318,7 +317,7 @@ for step in range(steps):
             if (i+1) % log_interval == 0:
                 print_log(step+1, gan_epoch+1, gan_epoches, lr, s1_cls_loss.data[0], s2_cls_loss.data[0], s1_t_dis_loss.data[0], \
                           s2_t_dis_loss.data[0], s1_t_confusion_loss_s1.data[0], s1_t_confusion_loss_t.data[0], \
-                          s2_t_confusion_loss_s2.data[0], s2_t_confusion_loss_t.data[0], SELECTIVE_SOURCE, ploter, count)
+                          s2_t_confusion_loss_s2.data[0], s2_t_confusion_loss_t.data[0], SELECTIVE_SOURCE, 0, count)
                 count += 1
 
 print("max_correct is :",str(max_correct))

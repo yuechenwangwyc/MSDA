@@ -9,7 +9,7 @@ from torch.autograd import Variable
 import os.path as osp
 import logging
 import sys
-from utils import OfficeImage, LinePlotter
+from utils import OfficeImage
 from model import Extractor, Classifier, Discriminator
 from model import get_cls_loss, get_dis_loss, get_confusion_loss
 
@@ -20,7 +20,7 @@ MAIN_DIR=os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd())))
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_root", default=osp.join(MAIN_DIR,"dataset/office/"))
 parser.add_argument("-s1", default="amazon")
-parser.add_argument("-t", default="amazon")
+parser.add_argument("-t", default="dslr")
 parser.add_argument("--batch_size", default=32)
 parser.add_argument("--shuffle", default=True)
 parser.add_argument("--num_workers", default=8)
@@ -129,7 +129,6 @@ count = 0
 max_correct = 0
 max_step = 0
 max_epoch = 0
-ploter = LinePlotter(env_name="bvlc_A_W_2_D")
 for step in range(steps):
     # Part 1: assign psudo-labels to t-domain and update the label-dataset
 
