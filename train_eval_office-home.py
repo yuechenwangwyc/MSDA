@@ -15,7 +15,7 @@ from model import get_cls_loss, get_dis_loss, get_confusion_loss
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
-MAIN_DIR=os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd())))
+MAIN_DIR=os.path.dirname(os.getcwd())
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_root", default=osp.join(MAIN_DIR,"dataset/office-home"))

@@ -9,13 +9,13 @@ from torch.autograd import Variable
 import os.path as osp
 import logging
 import sys
-from utils_copy import OfficeImage, LinePlotter
-from model_copy import Extractor, Classifier, Discriminator
-from model_copy import get_cls_loss, get_dis_loss, get_confusion_loss
+from utils import OfficeImage
+from model import Extractor, Classifier, Discriminator
+from model import get_cls_loss, get_dis_loss, get_confusion_loss
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
-MAIN_DIR=os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd())))
+MAIN_DIR=os.path.dirname(os.getcwd())
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_root", default=osp.join(MAIN_DIR,"dataset/office/"))
@@ -110,12 +110,12 @@ s2_classifier = Classifier(num_classes=num_classes)
 s1_t_discriminator = Discriminator()
 s2_t_discriminator = Discriminator()
 
-extractor.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_extractor.pth")))
+extractor.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/office/bvlc_extractor.pth")))
 extractor = nn.DataParallel(extractor)
 extractor=extractor.cuda()
 
-s1_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s1_cls.pth")))
-s2_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s2_cls.pth")))
+s1_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/office/bvlc_s1_cls.pth")))
+s2_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/office/bvlc_s2_cls.pth")))
 s1_classifier = nn.DataParallel(s1_classifier)
 s2_classifier = nn.DataParallel(s2_classifier)
 s1_classifier=s1_classifier.cuda()
@@ -128,7 +128,7 @@ s2_t_discriminator = nn.DataParallel(s2_t_discriminator)
 s2_t_discriminator=s2_t_discriminator.cuda()
 
 
-def print_log(step, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag, ploter, count):
+def print_log(step, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag):
     logger.info("Step [%d/%d] Epoch [%d/%d] lr: %f, s1_cls_loss: %.4f, s2_cls_loss: %.4f, s1_t_dis_loss: %.4f, " \
           "s2_t_dis_loss: %.4f, s1_t_confusion_loss_s1: %.4f, s1_t_confusion_loss_t: %.4f, " \
           "s2_t_confusion_loss_s2: %.4f, s2_t_confusion_loss_t: %.4f, selected_source: %s" \
@@ -139,7 +139,7 @@ count = 0
 max_correct = 0
 max_step = 0
 max_epoch = 0
-ploter = LinePlotter(env_name="bvlc_A_W_2_D")
+
 for step in range(steps):
     # Part 1: assign psudo-labels to t-domain and update the label-dataset
     logger.info( "#################### Part1 ####################")
@@ -168,7 +168,6 @@ for step in range(steps):
         s2_cls = s2_cls.data.cpu().numpy()
         
         t_pred = s1_cls * s1_weight + s2_cls * s2_weight
-        #ids = t_pred.argmax(axis=1)
         ids=np.argmax(t_pred,axis=1)
         for j in range(ids.shape[0]):
             line = fin.next()
@@ -236,8 +235,8 @@ for step in range(steps):
             optim_extract.step()
 
             if (i+1) % log_interval == 0:
-                print_log(step+1, cls_epoch+1, cls_epoches, lr, s1_t_cls_loss.data[0], \
-                           s2_t_cls_loss.data[0], 0, 0, 0, 0, 0, 0, "...", ploter, count)
+                print_log(step+1, cls_epoch+1, cls_epoches, lr, s1_t_cls_loss.data[0],
+                          s2_t_cls_loss.data[0], 0, 0, 0, 0, 0, 0, count)
                 count += 1
     
         extractor.eval()
@@ -254,7 +253,6 @@ for step in range(steps):
             s1_cls = s1_cls.data.cpu().numpy()
             s2_cls = s2_cls.data.cpu().numpy()
             res = s1_cls * s1_weight + s2_cls * s2_weight
-            #pred = res.argmax(axis=1)
             pred = np.argmax(res,axis=1)
             labels = labels.numpy()
             correct += np.equal(labels, pred).sum()
@@ -345,7 +343,7 @@ for step in range(steps):
             if (i+1) % log_interval == 0:
                 print_log(step+1, gan_epoch+1, gan_epoches, lr, s1_cls_loss.data[0], s2_cls_loss.data[0], s1_t_dis_loss.data[0], \
                           s2_t_dis_loss.data[0], s1_t_confusion_loss_s1.data[0], s1_t_confusion_loss_t.data[0], \
-                          s2_t_confusion_loss_s2.data[0], s2_t_confusion_loss_t.data[0], SELECTIVE_SOURCE, ploter, count)
+                          s2_t_confusion_loss_s2.data[0], s2_t_confusion_loss_t.data[0], count)
                 count += 1
 
 logger.info("max_correct is :{}".format(str(max_correct)))

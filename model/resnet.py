@@ -10,14 +10,14 @@ def calc_coeff(iter_num, high=1.0, low=0.0, alpha=10.0, max_iter=10000.0):
 def init_weights(m):
     classname = m.__class__.__name__
     if classname.find('Conv2d') != -1 or classname.find('ConvTranspose2d') != -1:
-        nn.init.kaiming_uniform(m.weight)
-        nn.init.constant(m.bias,0.0)
+        nn.init.kaiming_uniform_(m.weight)
+        nn.init.zeros_(m.bias)
     elif classname.find('BatchNorm') != -1:
-        nn.init.normal(m.weight, 1.0, 0.02)
-        nn.init.constant(m.bias,0.0)
+        nn.init.normal_(m.weight, 1.0, 0.02)
+        nn.init.zeros_(m.bias)
     elif classname.find('Linear') != -1:
-        nn.init.kaiming_normal(m.weight)
-        nn.init.constant(m.bias,0.0)
+        nn.init.kaiming_normal_(m.weight)
+        nn.init.zeros_(m.bias)
 
 resnet_dict = {"ResNet18":models.resnet18, "ResNet34":models.resnet34, "ResNet50":models.resnet50, "ResNet101":models.resnet101, "ResNet152":models.resnet152}
 

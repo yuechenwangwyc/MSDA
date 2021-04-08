@@ -1,24 +1,24 @@
 import os
 import argparse
-import tqdm
 import numpy as np
-from itertools import chain
-from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import transforms
 from torch.autograd import Variable
-
-from utils import OfficeImage, LinePlotter
+import os.path as osp
+import logging
+import sys
+from utils import OfficeImage
 from model import Extractor, Classifier, Discriminator
 from model import get_cls_loss, get_dis_loss, get_confusion_loss
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,5'#####
 
+os.environ["CUDA_VISIBLE_DEVICES"] = '5,7'
+
+MAIN_DIR=os.path.dirname(os.getcwd())
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--data_root", default="/data/wyc/dataset/office/")
+parser.add_argument("--data_root", default=osp.join(MAIN_DIR, "dataset/office/"))
 parser.add_argument("-s1", default="amazon")
 parser.add_argument("-s2", default="webcam")
 parser.add_argument("-t", default="dslr")
@@ -26,7 +26,7 @@ parser.add_argument("--batch_size", default=32)
 parser.add_argument("--shuffle", default=True)
 parser.add_argument("--num_workers", default=8)
 parser.add_argument("--steps", default=8)
-parser.add_argument("--snapshot", default="/data/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/snapshot/")
+parser.add_argument("--snapshot", default=osp.join(MAIN_DIR, "MSDA/snapshot/"))
 parser.add_argument("--s1_weight", default=0.5)
 parser.add_argument("--s2_weight", default=0.5)
 parser.add_argument("--lr", default=0.00001)
@@ -39,6 +39,7 @@ parser.add_argument("--log_interval", default=5)
 parser.add_argument("--cls_epoches", default=10)
 parser.add_argument("--gan_epoches", default=5)
 args = parser.parse_args()
+
 
 data_root = args.data_root
 batch_size = args.batch_size
@@ -57,6 +58,27 @@ threshold = args.threshold
 log_interval = args.log_interval
 cls_epoches = args.cls_epoches
 gan_epoches = args.gan_epoches
+
+
+def get_log(file_name):
+    logger = logging.getLogger('train')
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    fh = logging.FileHandler(file_name, mode='a')
+    fh.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(message)s')
+    ch.setFormatter(formatter)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    return logger
+log_dir = './log/'
+log_file=osp.join(log_dir,os.path.abspath(__file__).split('/')[-1].split('.')[0]+'.txt')
+if os.path.isfile(log_file):
+    os.remove(log_file)
+logger = get_log(log_file)
+
 
 s1_root = os.path.join(data_root, args.s1, "images")
 s1_label = os.path.join(data_root, args.s1, "label.txt")
@@ -83,44 +105,44 @@ t_loader_test = torch.utils.data.DataLoader(t_set_test, batch_size=batch_size,
 
 
 extractor = Extractor()
-extractor.load_state_dict(torch.load("/data/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_extractor.pth"))
+s1_classifier = Classifier(num_classes=num_classes)
+s2_classifier = Classifier(num_classes=num_classes)
+s1_t_discriminator = Discriminator()
+s2_t_discriminator = Discriminator()
+
+extractor.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/pretrain/office/bvlc_extractor.pth")))
 extractor = nn.DataParallel(extractor)
 extractor=extractor.cuda()
 
-s1_classifier = Classifier(num_classes=num_classes)
-s2_classifier = Classifier(num_classes=num_classes)
-
-s1_classifier.load_state_dict(torch.load("/data/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s1_cls.pth"))
-s2_classifier.load_state_dict(torch.load("/data/wyc/MSDA/A_W_2_D_Open/bvlc_A_W_2_D/pretrain/bvlc_s2_cls.pth"))
+s1_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/pretrain/office/bvlc_s1_cls.pth")))
+s2_classifier.load_state_dict(torch.load(osp.join(MAIN_DIR,"MSDA/pretrain/office/bvlc_s2_cls.pth")))
 s1_classifier = nn.DataParallel(s1_classifier)
 s2_classifier = nn.DataParallel(s2_classifier)
 s1_classifier=s1_classifier.cuda()
 s2_classifier=s2_classifier.cuda()
 
 
-s1_t_discriminator = Discriminator()
 s1_t_discriminator = nn.DataParallel(s1_t_discriminator)
 s1_t_discriminator=s1_t_discriminator.cuda()
-s2_t_discriminator = Discriminator()
 s2_t_discriminator = nn.DataParallel(s2_t_discriminator)
 s2_t_discriminator=s2_t_discriminator.cuda()
 
 
-def print_log(step, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag, ploter, count):
-    print "Step [%d/%d] Epoch [%d/%d] lr: %f, s1_cls_loss: %.4f, s2_cls_loss: %.4f, s1_t_dis_loss: %.4f, " \
+def print_log(step, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag):
+    logger.info("Step [%d/%d] Epoch [%d/%d] lr: %f, s1_cls_loss: %.4f, s2_cls_loss: %.4f, s1_t_dis_loss: %.4f, " \
           "s2_t_dis_loss: %.4f, s1_t_confusion_loss_s1: %.4f, s1_t_confusion_loss_t: %.4f, " \
           "s2_t_confusion_loss_s2: %.4f, s2_t_confusion_loss_t: %.4f, selected_source: %s" \
-          % (step, steps, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag)
+          % (step, steps, epoch, epoches, lr, l1, l2, l3, l4, l5, l6, l7, l8, flag))
 
 
 count = 0
 max_correct = 0
 max_step = 0
 max_epoch = 0
-ploter = LinePlotter(env_name="bvlc_A_W_2_D")
+
 for step in range(steps):
     # Part 1: assign psudo-labels to t-domain and update the label-dataset
-    print "#################### Part1 ####################"
+    logger.info( "#################### Part1 ####################")
     extractor.eval()
     s1_classifier.eval()
     s2_classifier.eval()
@@ -130,8 +152,8 @@ for step in range(steps):
     if step > 0:
         s1_weight = s1_weight_loss / (s1_weight_loss + s2_weight_loss)
         s2_weight = s2_weight_loss / (s1_weight_loss + s2_weight_loss)
-    print "s1_weight is: ", s1_weight
-    print "s2_weight is: ", s2_weight
+    logger.info( "s1_weight is:{}".format(s1_weight))
+    logger.info( "s2_weight is:{}".format(s2_weight))
 
 
 
@@ -146,10 +168,9 @@ for step in range(steps):
         s2_cls = s2_cls.data.cpu().numpy()
         
         t_pred = s1_cls * s1_weight + s2_cls * s2_weight
-        #ids = t_pred.argmax(axis=1)
         ids=np.argmax(t_pred,axis=1)
         for j in range(ids.shape[0]):
-            line = fin.next()
+            line = fin.__next__()
             data = line.strip().split(" ")
             if t_pred[j, ids[j]] >= threshold:
                 fout.write(data[0] + " " + str(ids[j]) + "\n")
@@ -160,7 +181,7 @@ for step in range(steps):
 
   
     # Part 2: train F1t, F2t with pseudo labels
-    print "#################### Part2 ####################"
+    logger.info( "#################### Part2 ####################")
     extractor.train()
     s1_classifier.train()
     s2_classifier.train()
@@ -168,7 +189,7 @@ for step in range(steps):
     t_pse_set = OfficeImage(t_root, t_pse_label, split="train")
     t_pse_loader_raw = torch.utils.data.DataLoader(t_pse_set, batch_size=batch_size,
                            shuffle=shuffle, num_workers=num_workers)
-    print "Length of pseudo-label dataset: ", len(t_pse_set)
+    logger.info( "Length of pseudo-label dataset:{}".format(len(t_pse_set)))
 
     optim_extract = optim.Adam(extractor.parameters(), lr=lr, betas=(beta1, beta2))
     optim_s1_cls = optim.Adam(s1_classifier.parameters(), lr=lr, betas=(beta1, beta2))
@@ -214,8 +235,8 @@ for step in range(steps):
             optim_extract.step()
 
             if (i+1) % log_interval == 0:
-                print_log(step+1, cls_epoch+1, cls_epoches, lr, s1_t_cls_loss.data[0], \
-                           s2_t_cls_loss.data[0], 0, 0, 0, 0, 0, 0, "...", ploter, count)
+                print_log(step+1, cls_epoch+1, cls_epoches, lr, s1_t_cls_loss.item(),
+                          s2_t_cls_loss.item(), 0, 0, 0, 0, 0, 0, count)
                 count += 1
     
         extractor.eval()
@@ -232,25 +253,26 @@ for step in range(steps):
             s1_cls = s1_cls.data.cpu().numpy()
             s2_cls = s2_cls.data.cpu().numpy()
             res = s1_cls * s1_weight + s2_cls * s2_weight
-            #pred = res.argmax(axis=1)
             pred = np.argmax(res,axis=1)
             labels = labels.numpy()
             correct += np.equal(labels, pred).sum()
         current_accuracy = correct * 1.0 / len(t_set_test)
-        current_accuracy=current_accuracy.item()
-        print "Current accuracy is: ", current_accuracy
+        current_accuracy=current_accuracy
+        logger.info( "Current accuracy is:{}".format(current_accuracy))
 
         if current_accuracy >= max_correct:
             max_correct = current_accuracy
             max_step = step
             max_epoch = cls_epoch
-            torch.save(extractor.state_dict(), os.path.join(snapshot, "p2_extractor_" + str(step) + "_" + str(cls_epoch) + ".pth"))
-            torch.save(s1_classifier.state_dict(), os.path.join(snapshot, "p2_s1_cls_" + str(step) + "_" + str(cls_epoch) + ".pth"))
-            torch.save(s2_classifier.state_dict(), os.path.join(snapshot, "p2_s2_cls_" + str(step) + "_" + str(cls_epoch) + ".pth"))
+            torch.save(extractor.state_dict(), os.path.join(snapshot, "_extractor" + ".pth"))
+            torch.save(s1_classifier.state_dict(), os.path.join(snapshot, os.path.abspath(__file__).
+                                                                split('/')[-1].split('.')[0]+"_s1_cls" + ".pth"))
+            torch.save(s2_classifier.state_dict(), os.path.join(snapshot, os.path.abspath(__file__).
+                                                                split('/')[-1].split('.')[0]+"_s2_cls" + ".pth"))
             
          
     # Part 3: train discriminator and generate mix feature
-    print "#################### Part3 ####################"
+    logger.info( "#################### Part3 ####################")
     extractor.train()
     s1_classifier.train()
     s2_classifier.train()
@@ -268,8 +290,9 @@ for step in range(steps):
             s1_imgs, s1_labels = Variable(s1_imgs.cuda()), Variable(s1_labels.cuda())
             s2_imgs, s2_labels = Variable(s2_imgs.cuda()), Variable(s2_labels.cuda())
             t_imgs = Variable(t_imgs.cuda())
-  
-            extractor.zero_grad()
+
+            #train G
+            optim_extract.zero_grad()
             s1_feature = extractor(s1_imgs)
             s2_feature = extractor(s2_imgs)
             t_feature = extractor(t_imgs)
@@ -279,12 +302,13 @@ for step in range(steps):
             s1_t_real = s1_t_discriminator(t_feature)
             s2_t_fake = s2_t_discriminator(s2_feature)
             s2_t_real = s2_t_discriminator(t_feature)
+
             s1_cls_loss = get_cls_loss(s1_cls, s1_labels)
             s2_cls_loss = get_cls_loss(s2_cls, s2_labels)
             s1_t_dis_loss = get_dis_loss(s1_t_fake, s1_t_real)
             s2_t_dis_loss = get_dis_loss(s2_t_fake, s2_t_real)
-            s1_weight_loss += s1_t_dis_loss.data[0]
-            s2_weight_loss += s2_t_dis_loss.data[0]
+            s1_weight_loss += s1_t_dis_loss.item()
+            s2_weight_loss += s2_t_dis_loss.item()
 
             s1_t_confusion_loss_s1 = get_confusion_loss(s1_t_fake)
             s1_t_confusion_loss_t = get_confusion_loss(s1_t_real)            
@@ -294,7 +318,7 @@ for step in range(steps):
             s2_t_confusion_loss_t = get_confusion_loss(s2_t_real)
             s2_t_confusion_loss = 0.5 * s2_t_confusion_loss_s2 + 0.5 * s2_t_confusion_loss_t
 
-            if s1_t_dis_loss.data[0] > s2_t_dis_loss.data[0]:
+            if s1_t_dis_loss.item() > s2_t_dis_loss.item():
                 SELECTIVE_SOURCE = "S1"
                 torch.autograd.backward([s1_cls_loss, s2_cls_loss, s1_t_confusion_loss])
             else:
@@ -303,6 +327,7 @@ for step in range(steps):
 
             optim_extract.step()
 
+            #train D
             s1_t_discriminator.zero_grad()
             s2_t_discriminator.zero_grad()
             s1_t_fake = s1_t_discriminator(s1_feature.detach())
@@ -316,12 +341,11 @@ for step in range(steps):
             optim_s2_t_dis.step()
 
             if (i+1) % log_interval == 0:
-                print_log(step+1, gan_epoch+1, gan_epoches, lr, s1_cls_loss.data[0], s2_cls_loss.data[0], s1_t_dis_loss.data[0], \
-                          s2_t_dis_loss.data[0], s1_t_confusion_loss_s1.data[0], s1_t_confusion_loss_t.data[0], \
-                          s2_t_confusion_loss_s2.data[0], s2_t_confusion_loss_t.data[0], SELECTIVE_SOURCE, ploter, count)
+                print_log(step+1, gan_epoch+1, gan_epoches, lr, s1_cls_loss.item(), s2_cls_loss.item(), s1_t_dis_loss.item(),
+                          s2_t_dis_loss.item(), s1_t_confusion_loss_s1.item(), s1_t_confusion_loss_t.item(),
+                          s2_t_confusion_loss_s2.item(), s2_t_confusion_loss_t.item(), count)
                 count += 1
 
-print("max_correct is :",str(max_correct))
-print("max_step is :",str(max_step+1))
-print("max_epoch is :",str(max_epoch+1))
-#ploter.save()
+logger.info("max_correct is :{}".format(str(max_correct)))
+logger.info("max_step is :{}".format(str(max_step+1)))
+logger.info("max_epoch is :{}".format(str(max_epoch+1)))
