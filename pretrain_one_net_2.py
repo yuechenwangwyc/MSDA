@@ -13,7 +13,7 @@ from utils import OfficeHomeImage
 from model import ResNetFc
 from model import get_cls_loss
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '5'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 MAIN_DIR = os.path.dirname(os.getcwd())
 
